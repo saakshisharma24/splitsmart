@@ -1,0 +1,215 @@
+// SQLite so the project runs with zero setup - clone, npm run setup, done.
+// Moving to Postgres is a one-line provider change; nothing below is
+// SQLite-specific except the use of String columns where Postgres would use
+// native enums and JSON.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  // Deterministic avatar tint, picked at signup so a user looks the same everywhere.
+  avatarColor  String   @default("#10b981")
+  // Optional UPI handle. Used to build a deep link on the settle-up screen so
+  // the payment can actually be made, not just recorded.
+  upiId        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships     GroupMember[]
+  payments        ExpensePayment[]
+  shares          ExpenseShare[]
+  expensesCreated Expense[]          @relation("ExpenseCreator")
+  settlementsSent Settlement[]       @relation("SettlementFrom")
+  settlementsRecv Settlement[]       @relation("SettlementTo")
+  recurringOwned  RecurringExpense[]
+  activities      Activity[]
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  // ISO 4217. Every amount in this group is stored in this currency's minor units.
+  currency    String    @default("INR")
+  emoji       String    @default("💸")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  members    GroupMember[]
+  expenses   Expense[]
+  settlements Settlement[]
+  recurring  RecurringExpense[]
+  activities Activity[]
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String   @default("MEMBER") // ADMIN | MEMBER
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  groupId     String
+  description String
+  // Integer minor units. See src/lib/money.ts - never a float, anywhere.
+  totalMinor  Int
+  currency    String   @default("INR")
+  category    String   @default("OTHER")
+  splitMode   String // EQUAL | EXACT | PERCENT | SHARES | ITEMIZED
+  // The SplitSpec that produced the shares below, kept verbatim so an expense
+  // can be re-opened and edited in the same mode the user originally chose.
+  splitSpec   String
+  notes       String?
+  receiptUrl  String?
+  date        DateTime @default(now())
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Set when this expense was generated from a recurring rule rather than
+  // entered by hand.
+  recurringExpenseId String?
+
+  group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("ExpenseCreator", fields: [createdById], references: [id])
+  recurring RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+
+  payments ExpensePayment[]
+  shares   ExpenseShare[]
+  items    ExpenseItem[]
+
+  @@index([groupId, date])
+  @@index([recurringExpenseId])
+}
+
+// Who actually put money down. A row per payer, so one bill can have several.
+model ExpensePayment {
+  id          String @id @default(cuid())
+  expenseId   String
+  userId      String
+  amountMinor Int
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+  @@index([userId])
+}
+
+// Who owes what. Denormalised from splitSpec on write so balance queries are a
+// plain aggregate instead of re-running the split engine over every expense.
+model ExpenseShare {
+  id          String @id @default(cuid())
+  expenseId   String
+  userId      String
+  amountMinor Int
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+  @@index([userId])
+}
+
+// Line items from an itemized split, including anything OCR pulled off a receipt.
+model ExpenseItem {
+  id          String @id @default(cuid())
+  expenseId   String
+  label       String
+  amountMinor Int
+  // JSON array of user ids who consumed this line. Empty = shared by the table.
+  participantIds String @default("[]")
+  position    Int    @default(0)
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([expenseId])
+}
+
+model Settlement {
+  id          String   @id @default(cuid())
+  groupId     String
+  fromUserId  String
+  toUserId    String
+  amountMinor Int
+  method      String   @default("CASH") // CASH | UPI | BANK | OTHER
+  note        String?
+  settledAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  from  User  @relation("SettlementFrom", fields: [fromUserId], references: [id])
+  to    User  @relation("SettlementTo", fields: [toUserId], references: [id])
+
+  @@index([groupId, settledAt])
+}
+
+// Rent, the shared Netflix account, the weekly cleaner. The rule lives here;
+// each time it fires it creates a normal Expense pointing back at this row.
+model RecurringExpense {
+  id          String    @id @default(cuid())
+  groupId     String
+  description String
+  totalMinor  Int
+  currency    String    @default("INR")
+  category    String    @default("OTHER")
+  splitMode   String
+  splitSpec   String
+  // JSON map of userId -> amountMinor describing who fronts the money each cycle.
+  payerSpec   String
+  frequency   String // DAILY | WEEKLY | MONTHLY | YEARLY
+  // Fire every N periods: interval 2 + MONTHLY = every other month.
+  interval    Int       @default(1)
+  startDate   DateTime
+  // The scheduler's only query is "where nextRunAt <= now and active".
+  nextRunAt   DateTime
+  endDate     DateTime?
+  lastRunAt   DateTime?
+  active      Boolean   @default(true)
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id])
+  generated Expense[]
+
+  @@index([active, nextRunAt])
+  @@index([groupId])
+}
+
+// Append-only feed. Kept as its own table rather than derived from expenses so
+// deletions and edits still leave a trace.
+model Activity {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  type      String // EXPENSE_ADDED | EXPENSE_EDITED | EXPENSE_DELETED | SETTLED | MEMBER_JOINED | RECURRING_FIRED
+  // JSON blob describing the event, shaped per type.
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+}

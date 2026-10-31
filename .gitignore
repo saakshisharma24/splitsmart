@@ -1,0 +1,47 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# database - local dev data never belongs in git
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/prisma/dev.db*
+/prisma/migrations/dev/
+
+# env - secrets stay out; .env.example is the committed template
+.env
+.env*.local
+!.env.example
+
+# testing
+/coverage
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+.vercel
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# uploads - receipt images are user data
+/public/uploads/*
+!/public/uploads/.gitkeep
