@@ -1,15 +1,37 @@
 # SplitSmart
 
-Group expense splitting that handles the cases the big apps punt on: itemised
-restaurant bills, receipts read from a photo, expenses that repeat on a
-schedule, and a settle-up plan that minimises how many payments anyone has to
-make.
+## The problem
+
+**Friends and flatmates who split expenses in Google Pay get no reports,
+statements, search or insights on their shared spending.** SplitSmart is a
+concept that explores adding these, along with itemised bill splitting and
+receipt scanning.
+
+Google Pay's split is built for the moment of the transaction and stops there.
+You can divide a bill, but you cannot ask what the flat spent on groceries last
+quarter, pull a statement for a trip once it is over, find that one dinner
+somebody is arguing about, or split a restaurant bill by who actually ordered
+the steak. The money moves; the record does not survive.
+
+### How this concept answers it
+
+| The gap | What SplitSmart does | Status |
+|---|---|---|
+| **No reports** | Spend by category, spend over time against your own share, and paid-vs-owed per member - each chart backed by a table view | Built |
+| **No statements** | One-click export of a whole group to a six-sheet `.xlsx` (summary, every expense with a column per member, balances, settle-up plan, category totals, settlement log) with live `SUM()` formulas, or flat CSV | Built |
+| **No search** | Find an expense by description, category, person, date range or amount | **Not built yet** - see Roadmap |
+| **No insights** | Top category, busiest month, your share as a percentage of group spend, largest expense, and "3 payments instead of 9" on settle-up | Built |
+| **No itemised splitting** | Per-dish attribution, with tax and service charge spread in proportion to what each person actually ordered | Built |
+| **No receipt scanning** | Photograph the bill; OCR runs in your browser and the line items are parsed and reconciled against the printed total | Built |
+
+Beyond the original gap, it also adds recurring expenses and debt
+simplification - see the feature detail below.
 
 Built with Next.js 15, TypeScript, Prisma and SQLite. Clone it, run one command,
 and it opens on a populated demo.
 
 ```bash
-git clone https://github.com/<your-username>/splitsmart.git
+git clone https://github.com/saakshisharma24/splitsmart.git
 cd splitsmart
 cp .env.example .env            # then set AUTH_SECRET (see below)
 npm install
@@ -245,6 +267,22 @@ What is **not**, and you should know before deploying it anywhere real:
   vulnerable paths this app does not exercise - none take attacker-controlled
   input here. The one advisory that *did* touch untrusted input, a zod DoS via
   oversized collections, is fixed by running zod 4.
+
+## Roadmap
+
+The problem statement names four things missing from Google Pay. Three are
+built. This is the fourth, and the honest state of the rest:
+
+- **Search and filtering** - the one gap between the premise and the code.
+  Filter a group's expenses by free text, category, who paid, who owes, a date
+  range or an amount range, with the balances and totals recalculating against
+  the filtered set. The data model already supports it; the UI does not exist.
+- **Editing an expense** - the original split spec is stored on every expense
+  precisely so one can be re-opened and edited in the mode it was created in.
+  Currently expenses are delete-and-re-add.
+- **Statements for a date range** - export currently covers a whole group. A
+  "last quarter" or "the Goa trip only" statement is a filter away once search
+  lands.
 
 ## Known limits
 
