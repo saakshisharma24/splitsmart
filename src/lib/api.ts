@@ -18,8 +18,13 @@ export function errorResponse(err: unknown): NextResponse {
     return NextResponse.json(
       {
         error: err.issues[0]?.message ?? 'That input is not valid',
+        // zod 4 types `path` as PropertyKey[], and String() on a symbol throws -
+        // which would turn a clean 422 into a 500. Convert each segment safely.
         fields: Object.fromEntries(
-          err.issues.map((i) => [i.path.join('.') || '_', i.message]),
+          err.issues.map((i) => [
+            i.path.map((seg) => (typeof seg === 'symbol' ? seg.description ?? '?' : String(seg))).join('.') || '_',
+            i.message,
+          ]),
         ),
       },
       { status: 422 },

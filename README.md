@@ -207,6 +207,45 @@ the application code is SQLite-specific.
 
 ---
 
+## Security
+
+What is in place:
+
+- **Passwords** are bcrypt hashed at cost 12. Never logged, never returned.
+- **Sessions** are a signed JWT in an `httpOnly`, `sameSite=lax` cookie, marked
+  `secure` in production. Not readable by page scripts, and `sameSite` blocks
+  the straightforward CSRF shapes.
+- **Authorisation is checked per request.** Every group-scoped route calls
+  `requireMembership` before touching data; the API returns 403 and pages return
+  404 for non-members. There is no "unguessable id" assumption anywhere.
+- **All input is schema-validated** with zod before it reaches the database, and
+  the split engine independently refuses anything that does not reconcile.
+- **No raw SQL** - every query goes through Prisma, parameterised. No
+  `dangerouslySetInnerHTML`, no `eval`.
+- **Rate limiting** on login (per IP *and* per account, since `x-forwarded-for`
+  is client-controlled), on signup, and on the receipt-enhance endpoint because
+  each call there spends API credit.
+- **Errors never leak internals** - unrecognised exceptions return a generic
+  message; stack traces and Prisma errors stay server-side.
+- **Secrets are not in the repository.** Only `.env.example` with placeholders is
+  committed; `.env` and the SQLite file are gitignored and have never been in
+  the history.
+
+What is **not**, and you should know before deploying it anywhere real:
+
+- **Rate limit counters live in process memory.** On one instance that genuinely
+  blunts online password guessing. Behind multiple replicas or on serverless it
+  degrades to "better than nothing" - swap in Redis or the platform's limiter.
+- **Signup discloses whether an email is registered** (409 on duplicate). Login
+  deliberately does not. This is the usual usability trade; close it if you care.
+- **No email verification, password reset, 2FA, or account lockout escalation.**
+- **No audit log of reads**, only of writes.
+- **`npm audit` is not empty.** The remaining advisories are in build-time and
+  transitive packages (`postcss` via Next, `uuid`/`minimatch` via ExcelJS) whose
+  vulnerable paths this app does not exercise - none take attacker-controlled
+  input here. The one advisory that *did* touch untrusted input, a zod DoS via
+  oversized collections, is fixed by running zod 4.
+
 ## Known limits
 
 - **Auth is deliberately simple** - bcrypt plus a signed httpOnly cookie, no

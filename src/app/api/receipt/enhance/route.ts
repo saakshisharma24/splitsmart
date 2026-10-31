@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { errorResponse, readJson } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { enhanceReceipt } from '@/lib/ocr/enhance';
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit';
 
 const schema = z.object({
   // Base64 with no data: prefix. Capped so a huge upload cannot be used to
@@ -22,7 +23,14 @@ const schema = z.object({
  */
 export async function POST(request: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
+
+    // Keyed on the account, not the IP: every call here spends API credit, and
+    // the caller is authenticated so there is a better key available than a
+    // header they control.
+    const limit = rateLimit(`enhance:${user.id}`, 20, 60 * 60_000);
+    if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
     const input = schema.parse(await readJson(request));
 
     const result = await enhanceReceipt(

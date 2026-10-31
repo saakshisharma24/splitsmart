@@ -3,10 +3,14 @@ import { avatarColorFor, createSession, hashPassword } from '@/lib/auth';
 import { errorResponse, readJson } from '@/lib/api';
 import { prisma } from '@/lib/db';
 import { ServiceError } from '@/lib/groups';
+import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit';
 import { signupSchema } from '@/lib/validation';
 
 export async function POST(request: Request) {
   try {
+    const limit = rateLimit(clientKey(request, 'signup'), 5, 60 * 60_000);
+    if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
     const input = signupSchema.parse(await readJson(request));
 
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
