@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #ffffff;
+  --bg-elevated: #f6f7f9;
+  --bg-sunken: #eceef2;
+  --border: #d5d9e2;
+  --text: #1b1e27;
+  --text-muted: #66738f;
+  --accent: #059669;
+  --accent-soft: #d4f7e3;
+  --positive: #059669;
+  --negative: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #111318;
+    --bg-elevated: #1b1e27;
+    --bg-sunken: #0b0d11;
+    --border: #2b303d;
+    --text: #eceef2;
+    --text-muted: #8591aa;
+    --accent: #34d399;
+    --accent-soft: #04291e;
+    --positive: #34d399;
+    --negative: #f87171;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #111318;
+  --bg-elevated: #1b1e27;
+  --bg-sunken: #0b0d11;
+  --border: #2b303d;
+  --text: #eceef2;
+  --text-muted: #8591aa;
+  --accent: #34d399;
+  --accent-soft: #04291e;
+  --positive: #34d399;
+  --negative: #f87171;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border p-5;
+    background: var(--bg-elevated);
+    border-color: var(--border);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-semibold transition active:scale-[0.98]
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn text-white;
+    background: var(--accent);
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .btn-ghost {
+    @apply btn border;
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--bg-sunken); }
+
+  .input {
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition;
+    background: var(--bg);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .input::placeholder { color: var(--text-muted); }
+
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide;
+    color: var(--text-muted);
+  }
+
+  /* Amounts always line up in columns - proportional digits make a list of
+     money genuinely harder to scan. */
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Thin, unobtrusive scrollbars that match the theme. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
